@@ -10,6 +10,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const home = await mkdtemp(join(tmpdir(), 'cyrene-host-'))
 process.env.DSH_HOME = home
@@ -319,6 +320,11 @@ ok(
     heroState.ready === true && heroState.url === '/cyrene/hero',
   heroState,
 )
+ok(
+  '欢迎页两个开关默认都是开（旧状态文件没有这两个键也按开处理）',
+  heroState.showImage === true && heroState.styled === true,
+  [heroState.showImage, heroState.styled],
+)
 const rh2 = makeRes()
 await route.handler(makeReq('GET', '/cyrene/hero'), rh2)
 ok(
@@ -354,6 +360,32 @@ const rh8 = await post({ hero: { image: 'meme/俏皮眨眼.png', title: '让昔�
 const backHero = JSON.parse(rh8.body).value.hero
 ok('改回默认形象后重新就绪', backHero.ready === true && backHero.url === '/cyrene/hero', backHero)
 
+// 欢迎页的两个开关：各自落盘、脏值忽略；欢迎语去掉首尾空白并按码点截断。
+const rh9 = await post({ hero: { showImage: false, styled: false } })
+const offHero = JSON.parse(rh9.body).value.hero
+ok(
+  '关掉「显示贴纸」「艺术字样式」：两个开关落盘，形象本身仍然就绪',
+  rh9.statusCode === 200 && offHero.showImage === false && offHero.styled === false && offHero.ready === true,
+  offHero,
+)
+ok(
+  '两个开关已落盘',
+  (await readStateFile()).hero.showImage === false && (await readStateFile()).hero.styled === false,
+)
+const rh10 = await post({ hero: { showImage: 'no', styled: 0 } })
+const dirtyHero = JSON.parse(rh10.body).value.hero
+ok('非布尔的开关值被忽略（不会被写成 "no" / 0）', dirtyHero.showImage === false && dirtyHero.styled === false, dirtyHero)
+const rh11 = await post({ hero: { title: '  ' + '啊'.repeat(80) + '  ' } })
+const longTitle = JSON.parse(rh11.body).value.hero.title
+ok('超长欢迎语按码点截到 60，并去掉首尾空白', longTitle === '啊'.repeat(60), [longTitle.length, longTitle])
+const rh12 = await post({ hero: { title: ' 让昔涟来帮帮你吧🎵 ' } })
+ok('欢迎语两端空白被 trim，末尾音符保留', JSON.parse(rh12.body).value.hero.title === '让昔涟来帮帮你吧🎵')
+// 管理器写回的是"清单里的路径"：包内是相对路径；这里顺带验一下绝对路径同样能就绪。
+const rh13 = await post({ hero: { image: fileURLToPath(new URL('../meme/俏皮眨眼.png', import.meta.url)) } })
+ok('包内绝对路径也能当欢迎页形象', JSON.parse(rh13.body).value.hero.ready === true, JSON.parse(rh13.body).value.hero)
+const rh14 = await post({ hero: { image: 'meme/俏皮眨眼.png' } })
+ok('换回相对路径仍然就绪', JSON.parse(rh14.body).value.hero.ready === true)
+
 // ── 7e. 表情包管理：自添加 / 删除 / 大小（写入口也走 rev 闸门）
 const revNow = async () => JSON.parse((await get()).body).value.rev
 async function writeTo(path, payload) {
@@ -387,6 +419,27 @@ ok(
 )
 ok('自定义条目落盘', (await readStateFile()).customStickers.length === 1)
 ok('人格附录立刻跟上（新贴纸马上能贴）', lastSection(A).text.includes('自定的') && lastSection(A).text.includes('测试用'))
+
+const upEntry = upValue.stickers.items.find((it) => it.id === upId)
+ok(
+  '清单给每张图带 heroPath：包内相对路径、改道到包外的自添加目录退回绝对路径',
+  typeof upEntry?.heroPath === 'string' && upEntry.heroPath.endsWith('.png') && upEntry.heroPath.includes('stickers-custom'),
+  upEntry?.heroPath,
+)
+const heroFromCustom = await writeTo('/cyrene/state', { hero: { image: upEntry.heroPath } })
+const customHero = JSON.parse(heroFromCustom.body).value.hero
+ok(
+  '自定义表情包也能当欢迎页形象（目录改道到包外同样认）',
+  heroFromCustom.statusCode === 200 && customHero.ready === true && customHero.url === '/cyrene/hero',
+  customHero,
+)
+const customHeroBytes = makeRes()
+await route.handler(makeReq('GET', '/cyrene/hero'), customHeroBytes)
+ok(
+  '换成自添加的图后 /cyrene/hero 回真字节',
+  customHeroBytes.statusCode === 200 && customHeroBytes.bytes.length === Buffer.from(PNG_B64, 'base64').length,
+  customHeroBytes.statusCode,
+)
 
 const staleUp = makeRes()
 await route.handler(makeReq('POST', '/cyrene/stickers', JSON.stringify({ rev: 1, name: 'x.png', data: 'data:image/png;base64,' + PNG_B64 })), staleUp)
@@ -423,6 +476,18 @@ const gone = makeRes()
 await route.handler(makeReq('GET', `/cyrene/sticker/${upId}`), gone)
 ok('文件也从磁盘删掉了', gone.statusCode === 404, gone.statusCode)
 ok('删除已落盘，人格附录里也不再提它', (await readStateFile()).customStickers.length === 0 && !lastSection(A).text.includes('自定的'))
+ok(
+  '删掉的正好是欢迎页形象时退回默认（不留悬空路径）',
+  delValue.state.hero.image === 'meme/俏皮眨眼.png' && delValue.state.hero.ready === true,
+  delValue.state.hero,
+)
+const heroAfterDel = makeRes()
+await route.handler(makeReq('GET', '/cyrene/hero'), heroAfterDel)
+ok(
+  '删图后 /cyrene/hero 仍能回默认形象的字节',
+  heroAfterDel.statusCode === 200 && heroAfterDel.bytes.length > 1000,
+  heroAfterDel.statusCode,
+)
 const delMissing = makeRes()
 await route.handler(makeReq('POST', '/cyrene/stickers/remove', JSON.stringify({ rev: await revNow(), id: '../../etc/passwd' })), delMissing)
 ok(
