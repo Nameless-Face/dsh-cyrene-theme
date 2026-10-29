@@ -1628,6 +1628,160 @@ ok(
   heroOffEl.children.map((c) => c && c.type),
 )
 
+// ── 欢迎页：贴纸/艺术字两个开关 + 管理器（选图、改欢迎语、入口位置）
+const heroPlain = await bootstrap({
+  ok: true,
+  value: {
+    ...RESPONSE.value,
+    hero: { image: 'meme/俏皮眨眼.png', title: '只看文字♪', showImage: false, styled: false, ready: true, url: '/cyrene/hero' },
+  },
+})
+const heroPlainBox = makeCtx()
+heroPlain.exports.apply(heroPlainBox.ctx)
+await tick()
+const heroPlainEl = heroPlainBox.registered.find((r) => r.registration.name === 'conversation.hero.brand.mark').component()
+const plainTitle = heroPlainEl.children.find((child) => child && child.props?.className === 'cyre-hero-title')
+ok(
+  '关掉「显示贴纸」后欢迎页只剩文字（宿主说就绪也不挂图）',
+  heroPlainEl.children.every((child) => child === null || child.type !== 'img') && plainTitle !== undefined,
+  heroPlainEl.children.map((c) => c && c.type),
+)
+ok(
+  '关掉「艺术字样式」后走普通文字类，末尾音符照样拆开',
+  plainTitle.children[0].props.className === 'cyre-hero-title-plain' &&
+    plainTitle.children[0].children[0] === '只看文字' &&
+    plainTitle.children[1].props.className === 'cyre-hero-note' &&
+    plainTitle.children[1].children[0] === '♪',
+  plainTitle.children.map((c) => c && c.props?.className),
+)
+
+const HERO_STATE = {
+  image: 'meme/俏皮眨眼.png',
+  title: '让昔涟来帮帮你吧🎵',
+  showImage: true,
+  styled: true,
+  ready: true,
+  url: '/cyrene/hero',
+}
+const STICKERS_HERO = {
+  ok: true,
+  value: {
+    version: 1,
+    maxPerTurn: 1,
+    enabled: true,
+    missing: [],
+    items: [
+      { id: 'happy', label: '超开心', when: '事情成了', heroPath: 'meme/超开心.png', type: 'image/png', bytes: 10, url: '/cyrene/sticker/happy' },
+      { id: 'wink', label: '俏皮眨眼', when: '开个小玩笑', heroPath: 'meme/俏皮眨眼.png', type: 'image/png', bytes: 10, url: '/cyrene/sticker/wink' },
+      { id: 'u1', label: '自定的', when: '测试用', custom: true, heroPath: 'stickers-custom/u1.png', type: 'image/png', bytes: 10, url: '/cyrene/sticker/u1' },
+    ],
+  },
+}
+let serverHero = { ...HERO_STATE }
+const bootH = await bootstrap((call) => {
+  if (call.url.includes('/cyrene/report')) return { status: 200, payload: { ok: true, value: { at: 'now' } } }
+  if (call.url.includes('/cyrene/stickers')) return { status: 200, payload: STICKERS_HERO }
+  if (isBackgrounds(call)) return { status: 200, payload: BACKGROUNDS }
+  if (call.method === 'POST' && call.url.endsWith('/cyrene/state')) {
+    const patch = JSON.parse(call.body || '{}')
+    serverHero = { ...serverHero, ...(patch.hero || {}) }
+    return { status: 200, payload: { ok: true, value: { ...REV7.value, rev: 8, hero: serverHero } } }
+  }
+  return { status: 200, payload: { ok: true, value: { ...REV7.value, hero: serverHero } } }
+}, { autoHost: true })
+const boxH = makeCtx()
+bootH.exports.apply(boxH.ctx)
+await tick()
+boxH.registered.find((r) => r.registration.id === 'cyrene-theme').component()
+await tick()
+const editorH = bootH.refs[0].current.children[0]
+
+const heroEntryH = editorH.querySelector('[data-role="open-hero"]')
+const stickerEntryH = editorH.querySelector('[data-role="open-stickers"]')
+const heroSummaryH = editorH.querySelector('[data-role="hero-summary"]')
+ok(
+  '欢迎页入口在表情包管理上方，并带「贴纸/欢迎语」概况',
+  heroEntryH !== null && stickerEntryH !== null && heroSummaryH !== null &&
+    editorH.descendants().indexOf(heroEntryH) < editorH.descendants().indexOf(stickerEntryH) &&
+    /贴纸显示/.test(heroSummaryH.textContent) && /艺术字/.test(heroSummaryH.textContent),
+  heroSummaryH?.textContent,
+)
+
+editorH.dispatch('click', { target: heroEntryH })
+const overlayH = globalThis.document.body.descendants().find((el) => el.className === 'cyre-overlay cyre-overlay--wide' && el.querySelector('[data-role="hero-preview"]') !== null)
+ok('点「打开管理器」打开欢迎页管理器', overlayH !== undefined, globalThis.document.body.descendants().map((el) => el.className))
+const previewH = overlayH.querySelector('[data-role="hero-preview"]')
+const previewImgH = previewH.descendants().find((el) => el.tagName === 'img')
+ok(
+  '预览就是 .cyre-hero 结构：贴纸走字节路由 + 艺术字 class',
+  previewH.descendants().some((el) => el.className === 'cyre-hero') &&
+    previewImgH !== undefined && /\/cyrene\/sticker\/wink$/.test(previewImgH.src) &&
+    previewH.descendants().some((el) => el.className === 'cyre-hero-title-text'),
+  previewImgH?.src,
+)
+const showH = overlayH.querySelector('[data-role="hero-show-image"]')
+const styledH = overlayH.querySelector('[data-role="hero-styled"]')
+ok('两个开关按宿主值回显', showH.checked === true && styledH.checked === true, [showH.checked, styledH.checked])
+
+const beforeHeroHide = bootH.calls.length
+showH.checked = false
+showH.dispatch('change')
+await tick()
+const hidePost = bootH.calls.slice(beforeHeroHide).find((c) => c.method === 'POST' && c.url.endsWith('/cyrene/state'))
+const hidePatch = hidePost ? JSON.parse(hidePost.body) : null
+ok(
+  '关掉贴纸只提交 hero.showImage（rev 照带）',
+  hidePatch?.hero?.showImage === false && hidePatch?.rev === 7 && Object.keys(hidePatch).length === 2,
+  hidePatch,
+)
+ok('关掉后预览里不再挂贴纸', !previewH.descendants().some((el) => el.tagName === 'img'), previewH.descendants().map((el) => el.tagName))
+
+styledH.checked = false
+styledH.dispatch('change')
+await tick()
+ok(
+  '关掉艺术字后预览改用普通文字样式',
+  previewH.descendants().some((el) => el.className === 'cyre-hero-title-plain'),
+  previewH.descendants().map((el) => el.className),
+)
+
+const pickerH = overlayH.querySelector('[data-role="hero-picker"]')
+const picksH = pickerH.children
+ok('选择器按表情包清单渲染卡片（含自添加的）', picksH.length === 3, picksH.length)
+ok('当前那张有选中态', picksH[1].attrs['data-on'] === '1', picksH.map((el) => el.attrs['data-on']))
+const beforeHeroPick = bootH.calls.length
+pickerH.dispatch('click', { target: picksH[0] })
+await tick()
+const pickPost = bootH.calls.slice(beforeHeroPick).find((c) => c.method === 'POST' && c.url.endsWith('/cyrene/state'))
+ok(
+  '点表情包就把 hero.image 换成它的 heroPath（存相对路径）',
+  JSON.parse(pickPost?.body || '{}').hero?.image === 'meme/超开心.png',
+  pickPost?.body,
+)
+
+const titleH = overlayH.querySelector('[data-role="hero-title"]')
+const saveTitleH = overlayH.querySelector('[data-role="hero-title-save"]')
+titleH.value = '来看看星星吧♪'
+titleH.dispatch('input')
+ok('改了欢迎语才点亮保存按钮', saveTitleH.disabled === false, saveTitleH.disabled)
+const beforeHeroTitle = bootH.calls.length
+saveTitleH.dispatch('click')
+await tick()
+const titlePost = bootH.calls.slice(beforeHeroTitle).find((c) => c.method === 'POST' && c.url.endsWith('/cyrene/state'))
+ok(
+  '保存欢迎语只提交 hero.title',
+  JSON.parse(titlePost?.body || '{}').hero?.title === '来看看星星吧♪',
+  titlePost?.body,
+)
+ok('保存后输入框回显宿主的值', titleH.value === '来看看星星吧♪', titleH.value)
+
+const closeH = overlayH.descendants().find((el) => el.tagName === 'button' && el.attrs['aria-label'] === '关闭')
+closeH.dispatch('click')
+ok(
+  '关掉后覆盖层从 body 上摘掉',
+  !globalThis.document.body.descendants().some((el) => el.className === 'cyre-overlay cyre-overlay--wide' && el.querySelector('[data-role="hero-preview"]') !== null),
+)
+
 console.log(`\n${failures.length === 0 ? 'PASS' : 'FAIL'}  ${passed}/${passed + failures.length}`)
 if (failures.length > 0) {
   console.log(`失败项：${failures.join(' | ')}`)
