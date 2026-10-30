@@ -158,6 +158,17 @@ async function bootstrap(response, options = {}) {
       if (typeof this.onload === 'function') this.onload()
     }
   }
+  // 首屏背景缓存：每次 bootstrap 一份新的存储，可选预置上次会话记下的设定
+  // （模拟"同一进程内二次加载页面"时 localStorage 还在的情况）。
+  const storage = new Map()
+  if (options.backgroundCache) {
+    storage.set('dsh-cyrene:background', JSON.stringify(options.backgroundCache))
+  }
+  globalThis.localStorage = {
+    getItem: (key) => (storage.has(key) ? storage.get(key) : null),
+    setItem: (key, value) => { storage.set(key, String(value)) },
+    removeItem: (key) => { storage.delete(key) },
+  }
   globalThis.fetch = async (url, init = {}) => {
     const call = { url: String(url), method: init.method ?? 'GET', body: init.body }
     calls.push(call)
@@ -1780,6 +1791,67 @@ closeH.dispatch('click')
 ok(
   '关掉后覆盖层从 body 上摘掉',
   !globalThis.document.body.descendants().some((el) => el.className === 'cyre-overlay cyre-overlay--wide' && el.querySelector('[data-role="hero-preview"]') !== null),
+)
+
+// ── 冷启动时序：清单先到、状态后到，不能先铺清单第一张
+const bootRace = await bootstrap((call) => {
+  if (call.url.endsWith('/cyrene/report')) return { status: 200, payload: { ok: true, value: { at: 'now' } } }
+  if (isBackgrounds(call)) return { status: 200, payload: BACKGROUNDS }
+  if (call.method === 'GET') {
+    return new Promise((resolve) => setTimeout(() => resolve({ status: 200, payload: REVB }), 60))
+  }
+  return { status: 200, payload: REVB }
+}, { autoHost: true })
+const boxRace = makeCtx()
+bootRace.exports.apply(boxRace.ctx)
+await slow(20)
+const docRace = bootRace.doc
+const layerRace = docRace.body.descendants().find((el) => el.className === 'cyre-bg')
+const activeRace = () => {
+  const img = layerRace?.children.find((el) => el.className === 'cyre-bg-img' && el.attrs['data-active'] === '1')
+  return img === undefined ? '' : String(img.style.backgroundImage)
+}
+ok(
+  '冷启动空窗里只留渐变底，绝不先铺清单第一张（那会闪一张错的图）',
+  docRace.body.attrs['data-cyre-bg'] === 'off' && activeRace() === '',
+  [docRace.body.attrs['data-cyre-bg'], activeRace()],
+)
+await slow(90)
+ok(
+  '状态回来后按锚点铺对那张',
+  docRace.body.attrs['data-cyre-bg'] === 'on' && activeRace().includes('/cyrene/background/a.jpeg'),
+  [docRace.body.attrs['data-cyre-bg'], activeRace()],
+)
+
+// 同一进程内重载（启动时的二次导航）：localStorage 里记着上次的锚点，先铺对那张。
+const REVC = { ok: true, value: { ...REV7.value, background: { ...BG_STATE, current: 'b.jpeg' } } }
+const bootCached = await bootstrap((call) => {
+  if (call.url.endsWith('/cyrene/report')) return { status: 200, payload: { ok: true, value: { at: 'now' } } }
+  if (isBackgrounds(call)) return { status: 200, payload: BACKGROUNDS }
+  if (call.method === 'GET') {
+    return new Promise((resolve) => setTimeout(() => resolve({ status: 200, payload: REVC }), 60))
+  }
+  return { status: 200, payload: REVC }
+}, { autoHost: true, backgroundCache: { enabled: true, current: 'b.jpeg', rotate: false, interval: 90, dim: 0.6 } })
+const boxCached = makeCtx()
+bootCached.exports.apply(boxCached.ctx)
+await slow(20)
+const docCached = bootCached.doc
+const layerCached = docCached.body.descendants().find((el) => el.className === 'cyre-bg')
+const activeCached = () => {
+  const img = layerCached?.children.find((el) => el.className === 'cyre-bg-img' && el.attrs['data-active'] === '1')
+  return img === undefined ? '' : String(img.style.backgroundImage)
+}
+ok(
+  '页面重载时直接用上次记住的锚点（b.jpeg），不先闪目录第一张',
+  docCached.body.attrs['data-cyre-bg'] === 'on' && activeCached().includes('/cyrene/background/b.jpeg'),
+  [docCached.body.attrs['data-cyre-bg'], activeCached()],
+)
+await slow(90)
+ok(
+  '宿主状态回来后锚点一致，不会再把图换掉',
+  docCached.body.attrs['data-cyre-bg'] === 'on' && activeCached().includes('/cyrene/background/b.jpeg'),
+  activeCached(),
 )
 
 console.log(`\n${failures.length === 0 ? 'PASS' : 'FAIL'}  ${passed}/${passed + failures.length}`)
