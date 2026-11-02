@@ -3,6 +3,9 @@
 这个仓库是 [`berhbro/dsh-cyrene-theme`](https://github.com/berhbro/dsh-cyrene-theme) 的个人副本。
 目标只有一条：**上游永远可快进，个人改动永远可重放。**
 
+当前基线：`upstream/main` @ `47cf4bf`（**v0.4.1**，2026-11-02 同步）。
+个人提交：4 个（钩子 / 文档与脚本 / 欢迎页管理器 / 冷启动背景修复），全部重放在 0.4.1 之上。
+
 ```
 upstream/main ──●──●──●──●        （berhbro 的发布线，只读）
                        ╲
@@ -49,14 +52,7 @@ main          ────────────●        （上游镜像，�
 html body[data-dsh-cyrene][data-cyrene-skin="on"]{ /* 例如换主色 */ }
 ```
 
-已备好的现成修复（macOS 桌面版窗口拖不动 / 双击不缩放，上游 issue #2、PR #3）——需要时把下面三行从注释里放出来：
-
-```css
-html body[data-dsh-cyrene] > .cyre-bg{
-  -webkit-app-region:initial !important;
-  app-region:initial !important;
-}
-```
+已备好的现成修复（macOS 桌面版窗口拖不动 / 双击不缩放，上游 issue #2、PR #3）——**上游 0.2.1 已经合并**，就在样式表的「窗口拖拽区」一段里（`body[data-dsh-cyrene] > .cyre-bg{ -webkit-app-region:initial !important; app-region:initial !important }`）。个人层不再保留第二份；同步上游时如果这段被改坏，以上游自带的回归断言为准。
 
 ## 同步上游（发版后跑一次）
 
@@ -69,7 +65,7 @@ html body[data-dsh-cyrene] > .cyre-bg{
 
 1. `git fetch upstream --prune`
 2. `git switch personal && git rebase upstream/main`
-3. `node test/host.smoke.mjs`、`client.smoke.mjs`、`contrast.mjs`（共 285 条断言）
+3. `node test/host.smoke.mjs`、`client.smoke.mjs`、`contrast.mjs`（共 **397** 条断言：165 + 198 + 34）
 4. `git tag -f sync/upstream-<sha>`
 
 手动等价命令：
@@ -96,6 +92,17 @@ git rebase --continue
 ```powershell
 git log --oneline upstream/main..personal
 ```
+
+## 上游 0.4.1 带来的变化（2026-11-02 同步）
+
+上游从 `7dfe963`（0.2.0）到 `47cf4bf`（0.4.1）一共 6 个提交，新增：
+
+- **长期记忆**（0.3.0）：`$DSH_HOME/cyrene-memory.json`、四条 `/cyrene/memory*` 路由、`cyrene_memory_add` / `cyrene_memory_search` / `cyrene_memory_forget` 三个工具、`cyrene:memory` section、设置页「✦ 长期记忆」整页管理器。
+- **世界书**（0.4.0 / 0.4.1）：`$DSH_HOME/cyrene-worldbook.json`、`cyrene:worldbook` 一行索引、`cyrene_worldbook_search` 工具、`tools/build-worldbook.mjs` 抓取脚本、设置页「✦ 世界书」整页管理器。**本机目前没有抓取**，库是空的；需要时自己在面板里点「从官方 wiki 抓取 / 更新」。
+- **macOS 拖拽修复**（PR #3）：上游样式表已经带 `-webkit-app-region:initial !important`，个人层不再重复。
+- **工具契约修复**：工具 `execute()` 必须返回对象，`output` 必须同时带 `schema` 与 `render`——与 rc.5 的 `@deepseek-ai/dsh-tools` 校验一致。
+
+这次 rebase 只有 **1 处冲突**：`lib/client.js` 设置页入口区，上游加 `memoryNote` / `worldbookNote` 两行概况，个人层加 `heroSummary` 一行概况；处理方式是**两边都保留**。个人层 4 个提交全部重放成功，欢迎页、背景冷启动修复与新面板共存。
 
 ## 已实现的个人改动
 
@@ -126,8 +133,8 @@ git log --oneline upstream/main..personal
 
 实现位置（同步上游时按这份清单看冲突）：
 
-- **就地改上游**：`DEFAULT_HERO` / `publicState().hero` / `applyPatch()` 的 hero 分支 / `persist()` / `ensureHero()` 的两个根 / `publicStickers()` 的 `heroPath` / 删除贴纸时的回退——都在 `lib/index.js`。
-- **冲突面很小**：`CyreneHero` 的两个条件与编辑器里的一行入口（`lib/client.js` 上游段）；管理器、预览、普通文字样式全部在个人区块（`PERSONAL_CSS` 与 `applyPersonal` 之后）。
+- **就地改上游**：`DEFAULT_HERO` / `publicState().hero` / `applyPatch()` 的 hero 分支 / `persist()` / `ensureHero()` 的两个根 / `publicStickers()` 的 `heroPath` / 删除贴纸时的回退——都在 `lib/index.js`。0.4.1 重构后逐项确认过，仍然完整。
+- **冲突面很小**：`CyreneHero` 的两个条件与编辑器里的一行入口（`lib/client.js` 上游段）；管理器、预览、普通文字样式全部在个人区块（`PERSONAL_CSS` 与 `applyPersonal` 之后）。0.4.1 只在这一段新增了记忆 / 世界书两行概况，已与欢迎页概况并排保留。
 
 ### 冷启动背景图闪烁修复
 
@@ -154,6 +161,7 @@ git log --oneline upstream/main..personal
 | `PERSONAL_CSS` / `lib/client.js` | 刷新页面（F5） |
 | `lib/index.js` / `cordis.patch.yml` | 重载插件行，或重启 DSH |
 | 面板里的设定 | 立刻 |
+| 面板里的记忆 / 世界书 | 立刻（写 `$DSH_HOME` 下各自的 JSON） |
 | `Background/` 里的图 | 刷新页面 |
 
 ## 安装方式
@@ -171,6 +179,7 @@ dsh plugin --profile desktop add D:\JUST_FOR_AI\dsh-cyrene-theme
 
 - **行尾**：系统 gitconfig 是 `autocrlf=true`（索引 LF / 工作区 CRLF）。rebase 没问题，但别把别处生成的 diff 直接 `git apply`。
 - **上传素材**：`stickers-custom/`、`backgrounds-custom/` 在包目录里（已 gitignore）。重装插件会丢图但状态文件里的条目还在；想长期留存，用 `CYRENE_CUSTOM_STICKER_DIR` / `CYRENE_CUSTOM_BACKGROUND_DIR` 把目录挪到仓库外（要给宿主进程设环境变量）。
+- **记忆 / 世界书不在仓库里**：分别在 `$DSH_HOME/cyrene-memory.json`、`$DSH_HOME/cyrene-worldbook.json`。本机世界书目前是空的（没有抓取），需要时自己在面板里点「从官方 wiki 抓取 / 更新」；抓取会写几百 KB 到 `$DSH_HOME`，不进 git。
 - **别在 `main` 上提交**：`main` 只做 `--ff-only` 快进，否则下次同步会很痛。
 
 ## 个人改动登记
@@ -181,3 +190,5 @@ dsh plugin --profile desktop add D:\JUST_FOR_AI\dsh-cyrene-theme
 | 2026-10-29 | 欢迎页管理器：贴纸显示 / 艺术字开关、从表情包选图、欢迎语编辑、删除当前形象自动回退 | `lib/index.js`（7 处）、`lib/client.js`（组件与编辑器 4 处 + 个人区块） | 否（除非上游也做） |
 | 2026-10-29 | 自检：新增 13 条宿主断言 + 16 条客户端断言（当次总计 125 / 155 / 34） | `test/host.smoke.mjs`、`test/client.smoke.mjs` | 否 |
 | 2026-10-30 | 冷启动背景图闪烁：`backgroundKnown` 闸门 + 首屏缓存；客户端断言 155 → 159 | `lib/client.js`、`test/client.smoke.mjs` | 是（通用修复，上游合并后可删） |
+| 2026-11-02 | 同步上游 v0.4.1（长期记忆 / 世界书 / macOS 拖拽修复 / 工具契约）；rebase 仅 1 处冲突，保留双方入口概况 | `lib/index.js`、`lib/client.js`、`test/*` | 否 |
+| 2026-11-02 | 移除个人层里重复的 macOS 拖拽修复注释；文档与同步脚本改为 0.4.1 基线（397 条断言） | `lib/client.js`、`PERSONAL.md`、`sync-upstream.ps1` | 否 |

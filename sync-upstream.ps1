@@ -6,7 +6,7 @@
   这是 PERSONAL.md 里「同步上游」一节的自动化版本：
     1. git fetch upstream --prune
     2. git switch personal && git rebase upstream/main
-    3. node test/host.smoke.mjs / client.smoke.mjs / contrast.mjs（285 条断言）
+    3. node test/host.smoke.mjs / client.smoke.mjs / contrast.mjs（397 条断言）
     4. git tag -f sync/upstream-<sha>
 
   冲突只可能落在个人钩子或「必须就地改上游」的那几个小提交上。解完
