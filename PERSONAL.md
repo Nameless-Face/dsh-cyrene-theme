@@ -65,7 +65,7 @@ html body[data-dsh-cyrene][data-cyrene-skin="on"]{ /* 例如换主色 */ }
 
 1. `git fetch upstream --prune`
 2. `git switch personal && git rebase upstream/main`
-3. `node test/host.smoke.mjs`、`client.smoke.mjs`、`contrast.mjs`（共 **397** 条断言：165 + 198 + 34）
+3. `node test/host.smoke.mjs`、`client.smoke.mjs`、`contrast.mjs`（共 **398** 条断言：165 + 199 + 34）
 4. `git tag -f sync/upstream-<sha>`
 
 手动等价命令：
@@ -191,4 +191,4 @@ dsh plugin --profile desktop add D:\JUST_FOR_AI\dsh-cyrene-theme
 | 2026-10-29 | 自检：新增 13 条宿主断言 + 16 条客户端断言（当次总计 125 / 155 / 34） | `test/host.smoke.mjs`、`test/client.smoke.mjs` | 否 |
 | 2026-10-30 | 冷启动背景图闪烁：`backgroundKnown` 闸门 + 首屏缓存；客户端断言 155 → 159 | `lib/client.js`、`test/client.smoke.mjs` | 是（通用修复，上游合并后可删） |
 | 2026-11-02 | 同步上游 v0.4.1（长期记忆 / 世界书 / macOS 拖拽修复 / 工具契约）；rebase 仅 1 处冲突，保留双方入口概况 | `lib/index.js`、`lib/client.js`、`test/*` | 否 |
-| 2026-11-02 | 移除个人层里重复的 macOS 拖拽修复注释；文档与同步脚本改为 0.4.1 基线（397 条断言） | `lib/client.js`、`PERSONAL.md`、`sync-upstream.ps1` | 否 |
+| 2026-11-02 | 移除个人层里重复的 macOS 拖拽修复注释；文档与同步脚本改为 0.4.1 基线（398 条断言）；新增「设置页五类入口顺序」回归断言 | `lib/client.js`、`PERSONAL.md`、`sync-upstream.ps1`、`test/client.smoke.mjs` | 否 |

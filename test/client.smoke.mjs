@@ -1718,6 +1718,20 @@ ok(
   heroSummaryH?.textContent,
 )
 
+// 0.4.1 在设置页加了「长期记忆 / 世界书」两行，正好和欢迎页概况行落在同一段
+// 渲染代码里（rebase 时唯一一处冲突）。这里把五行的顺序一起钉住：以后上游再
+// 加行、或 rebase 把某一行挤掉，测试会立刻报出来。
+const orderH = editorH.descendants()
+const entryRowsH = ['open-hero', 'open-stickers', 'open-backgrounds', 'open-memory', 'open-worldbook']
+  .map((role) => editorH.querySelector('[data-role="' + role + '"]'))
+const entryAtH = entryRowsH.map((el) => (el === null ? -1 : orderH.indexOf(el)))
+ok(
+  '设置页五类入口齐全且顺序固定（欢迎页 / 表情包 / 背景 / 记忆 / 世界书）',
+  entryRowsH.every((el) => el !== null) &&
+    entryAtH.every((at, index) => index === 0 || at > entryAtH[index - 1]),
+  entryAtH.join(','),
+)
+
 editorH.dispatch('click', { target: heroEntryH })
 const overlayH = globalThis.document.body.descendants().find((el) => el.className === 'cyre-overlay cyre-overlay--wide' && el.querySelector('[data-role="hero-preview"]') !== null)
 ok('点「打开管理器」打开欢迎页管理器', overlayH !== undefined, globalThis.document.body.descendants().map((el) => el.className))
