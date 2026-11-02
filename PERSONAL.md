@@ -4,7 +4,7 @@
 目标只有一条：**上游永远可快进，个人改动永远可重放。**
 
 当前基线：`upstream/main` @ `47cf4bf`（**v0.4.1**，2026-11-02 同步）。
-个人提交：4 个（钩子 / 文档与脚本 / 欢迎页管理器 / 冷启动背景修复），全部重放在 0.4.1 之上。
+个人提交：6 个（钩子 / 文档与脚本 / 欢迎页管理器 / 冷启动背景修复 + 本次同步与回归测试 2 个），全部重放在 0.4.1 之上。
 
 ```
 upstream/main ──●──●──●──●        （berhbro 的发布线，只读）
@@ -101,8 +101,9 @@ git log --oneline upstream/main..personal
 - **世界书**（0.4.0 / 0.4.1）：`$DSH_HOME/cyrene-worldbook.json`、`cyrene:worldbook` 一行索引、`cyrene_worldbook_search` 工具、`tools/build-worldbook.mjs` 抓取脚本、设置页「✦ 世界书」整页管理器。**本机目前没有抓取**，库是空的；需要时自己在面板里点「从官方 wiki 抓取 / 更新」。
 - **macOS 拖拽修复**（PR #3）：上游样式表已经带 `-webkit-app-region:initial !important`，个人层不再重复。
 - **工具契约修复**：工具 `execute()` 必须返回对象，`output` 必须同时带 `schema` 与 `render`——与 rc.5 的 `@deepseek-ai/dsh-tools` 校验一致。
+- **运行环境**：桌面版为 `0.2.1-rc.5`（build `d4db512a`）。已确认 rc.5 的 `tools` 服务存在（`register(definition)` 要求 `output.schema` + `output.render`），上游 3 个记忆工具 + 世界书工具的定义与之一致；新路由与工具要**重启宿主**后才会注册。
 
-这次 rebase 只有 **1 处冲突**：`lib/client.js` 设置页入口区，上游加 `memoryNote` / `worldbookNote` 两行概况，个人层加 `heroSummary` 一行概况；处理方式是**两边都保留**。个人层 4 个提交全部重放成功，欢迎页、背景冷启动修复与新面板共存。
+这次 rebase 只有 **1 处冲突**：`lib/client.js` 设置页入口区，上游加 `memoryNote` / `worldbookNote` 两行概况，个人层加 `heroSummary` 一行概况；处理方式是**两边都保留**。原有 4 个个人提交全部重放成功，欢迎页、背景冷启动修复与新面板共存；之后又补了 2 个同步/回归提交。
 
 ## 已实现的个人改动
 
